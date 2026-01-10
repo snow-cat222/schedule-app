@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>タイムスケジュール表</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="loginScreen" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #2c3e50; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999;">
+    <h2 style="color: white; margin-bottom: 20px;">パスワードを入力</h2>
+    <input type="password" id="appPassword" placeholder="パスワード" style="padding: 10px; font-size: 1.2rem; margin-bottom: 10px; border-radius: 5px; border: none;">
+    <button onclick="checkPassword()" style="padding: 10px 20px; font-size: 1rem; background: #2ecc71; color: white; border: none; border-radius: 5px; cursor: pointer;">解除</button>
+    <p id="loginError" style="color: #e74c3c; margin-top: 10px; display: none;">パスワードが違います</p>
+</div>
+
+<div class="container" id="mainApp" style="display: none;">
+    <h1>タイムスケジュール表 <span id="versionDisplay" onclick="editVersion()" style="font-size: 1rem; color: #7f8c8d; vertical-align: bottom; cursor: pointer; margin-left: 10px;" title="クリックしてバージョンを変更">(v1.0)</span></h1>
+
+    <div class="schedule-manager">
+        <label>現在のスケジュール:</label>
+        <div class="manager-controls">
+            <select id="scheduleSelector" onchange="switchSchedule()"></select>
+            <button onclick="createNewSchedule()" style="background-color: #2ecc71;">新規</button>
+            <button onclick="copyCurrentSchedule()" style="background-color: #9b59b6;">複製</button>
+            <button onclick="renameSchedule()" style="background-color: #f39c12;">名前変更</button>
+            <button onclick="deleteCurrentSchedule()" style="background-color: #e74c3c;">削除</button>
+            <button onclick="toggleTrash()" style="background-color: #7f8c8d;">🗑️ ゴミ箱</button>
+
+            <div style="margin-left: auto; display: flex; gap: 5px;">
+                <button onclick="exportData()" style="background-color: #34495e;" title="データをファイルに保存">💾 保存</button>
+                <button onclick="document.getElementById('importFile').click()" style="background-color: #34495e;" title="ファイルを読み込んで復元">📂 復元</button>
+                <input type="file" id="importFile" style="display: none;" onchange="importData(this)" accept=".json">
+            </div>
+        </div>
+
+        <div style="margin-top: 15px;">
+            <label style="display:block; margin-bottom:5px; font-size:0.9rem; color:#555;">このスケジュールのメモ:</label>
+            <textarea id="scheduleMemo" oninput="saveMemoToSchedule()" placeholder="持ち物リストや目標など、自由にメモ..." style="width: 100%; height: 60px; padding: 8px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; resize: vertical; font-family: sans-serif;"></textarea>
+        </div>
+
+        <div id="trashArea" style="display: none; margin-top: 15px; padding: 10px; background: #dfe6e9; border-radius: 5px;">
+            <h4 style="margin: 0 0 10px 0; font-size: 0.9rem;">ゴミ箱（3日後に自動削除されます）</h4>
+            <ul id="trashList" style="padding-left: 20px; margin: 0;"></ul>
+        </div>
+    </div>
+    
+    <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+
+    <div class="input-group">
+        <label>開始時間</label>
+        <input type="time" id="startTime" value="09:00">
+        
+        <label>終了時間</label>
+        <input type="time" id="endTime" value="10:00">
+        <span id="durationDisplay" style="font-size: 0.9rem; color: #4a90e2; margin-left: 10px;"></span>
+        
+        <label>行動内容</label>
+        <input type="text" id="taskName" placeholder="例：読書、ジムなど">
+        
+        <button onclick="addTask()">タスクを追加する</button>
+    </div>
+
+    <div class="charts-wrapper">
+        <div class="chart-box">
+            <h3>午前 (AM)</h3>
+            <div class="chart-container">
+                <canvas id="amChart"></canvas>
+            </div>
+        </div>
+        <div class="chart-box">
+            <h3>午後 (PM)</h3>
+            <div class="chart-container">
+                <canvas id="pmChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <h3>行動内容の一覧</h3>
+    <ul id="taskList"></ul>
+
+    <hr style="margin: 40px 0; border: 0; border-top: 2px dashed #ddd;">
+    <h3>今後追加したい機能について（開発メモ）</h3>
+    <div class="input-group" style="border: none; margin-bottom: 0;">
+        <input type="text" id="memoInput" placeholder="メモを入力...">
+        <button onclick="addMemo()" style="background-color: #2ecc71;">メモ追加</button>
+    </div>
+    <ul id="memoList"></ul>
+
+</div>
+
+<script src="script.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,26 @@
+body { font-family: sans-serif; padding: 20px; background-color: #f0f4f8; color: #333; }
+.container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+h1 { text-align: center; font-size: 1.5rem; color: #4a90e2; }
+
+/* スケジュール管理メニュー */
+.schedule-manager { background: #f1f8ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #dbe9f6; }
+.manager-controls { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 5px; align-items: center; }
+select { padding: 8px; font-size: 1rem; border-radius: 5px; border: 1px solid #ccc; flex-grow: 1; }
+.manager-controls button { padding: 8px 12px; font-size: 0.9rem; }
+
+/* 入力フォーム */
+.input-group { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 20px; }
+label { font-weight: bold; font-size: 0.9rem; }
+input[type="time"], input[type="text"] { padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 1rem; }
+button { background-color: #4a90e2; color: white; border: none; padding: 12px; border-radius: 5px; font-size: 1rem; cursor: pointer; transition: background 0.3s; }
+button:hover { background-color: #357abd; }
+
+/* グラフエリア */
+.charts-wrapper { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; margin-bottom: 30px; }
+.chart-box { flex: 1; min-width: 300px; text-align: center; }
+.chart-container { position: relative; height: 300px; width: 100%; }
+
+/* リスト表示 */
+ul { list-style: none; padding: 0; }
+li { background: #f9f9f9; padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+.delete-btn { background: #e74c3c; color: white; padding: 5px 10px; font-size: 0.8rem; border-radius: 3px; margin-left: 10px; }
