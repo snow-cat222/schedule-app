@@ -6,7 +6,7 @@ let allSchedules = {};
 let trashSchedules = [];   
 let currentScheduleName = "";
 let tasks = [];            
-let appVersion = "v1.0"; // バージョン管理変数
+let appVersion = "v1.1"; // 機能追加に合わせてバージョン更新
 
 // 編集中のタスク番号
 let editingIndex = -1;
@@ -273,6 +273,7 @@ function updateUI(shouldSave = false) {
                 </div>
             `;
         } else {
+            // 表示用に時間を整形（日またぎの場合はアイコンなどをつけるとなお良いですが、まずはシンプルに）
             li.innerHTML = `
                 <span>${task.start} - ${task.end} : <strong>${task.name}</strong></span>
                 <div>
@@ -314,22 +315,8 @@ function saveInlineEdit(index) {
         return;
     }
 
-    const startMin = timeToMinutes(start);
-    const endMin = timeToMinutes(end);
-
-    if (startMin >= endMin) {
-        alert("終了時間は開始時間より後に設定してください");
-        return;
-    }
-
-    const hasOverlap = tasks.some((task, i) => {
-        if (i === index) return false;
-        const tStart = timeToMinutes(task.start);
-        const tEnd = timeToMinutes(task.end);
-        return startMin < tEnd && endMin > tStart;
-    });
-
-    if (hasOverlap) {
+    // ■修正：重複チェックのロジック変更
+    if (hasOverlap(start, end, index)) {
         alert("時間が他のスケジュールと重なっています！");
         return;
     }
@@ -350,9 +337,51 @@ function calculateDuration() {
     const end = document.getElementById('endTime').value;
     const display = document.getElementById('durationDisplay');
     if (!start || !end) { display.textContent = ""; return; }
-    const diff = timeToMinutes(end) - timeToMinutes(start);
-    if (diff <= 0) { display.textContent = "（時間が正しくありません）"; display.style.color = "red"; } 
-    else { display.textContent = " ⏳ " + formatDuration(diff); display.style.color = "#4a90e2"; }
+    
+    // ■修正: 日またぎ計算（終了が開始より小さい場合は翌日とみなす）
+    let diff = timeToMinutes(end) - timeToMinutes(start);
+    if (diff < 0) {
+        diff += 1440; // 24時間(1440分)を足す
+    }
+    
+    if (diff === 0) { 
+        display.textContent = "（時間が同じです）"; display.style.color = "red"; 
+    } else { 
+        display.textContent = " ⏳ " + formatDuration(diff); display.style.color = "#4a90e2"; 
+    }
+}
+
+// ■追加：重複チェック用のヘルパー関数
+function hasOverlap(newStartStr, newEndStr, ignoreIndex = -1) {
+    const newS = timeToMinutes(newStartStr);
+    const newE = timeToMinutes(newEndStr);
+    
+    // 日またぎ対応：時間を[開始, 終了]の配列のリストに変換
+    // 通常(9:00-10:00): [[540, 600]]
+    // 日またぎ(22:00-02:00): [[1320, 1440], [0, 120]] (22:00-24:00 と 0:00-02:00)
+    const getRanges = (s, e) => {
+        if (s < e) return [[s, e]];
+        return [[s, 1440], [0, e]];
+    };
+
+    const targetRanges = getRanges(newS, newE);
+
+    return tasks.some((task, i) => {
+        if (i === ignoreIndex) return false;
+        
+        const tS = timeToMinutes(task.start);
+        const tE = timeToMinutes(task.end);
+        const currentRanges = getRanges(tS, tE);
+
+        // すべての期間の組み合わせで重なりをチェック
+        for (let tr of targetRanges) {
+            for (let cr of currentRanges) {
+                // 交差判定: 開始A < 終了B かつ 開始B < 終了A なら重なっている
+                if (tr[0] < cr[1] && cr[0] < tr[1]) return true;
+            }
+        }
+        return false;
+    });
 }
 
 function addTask() {
@@ -361,15 +390,13 @@ function addTask() {
     const name = document.getElementById('taskName').value;
 
     if (!start || !end || !name) { alert("すべての項目を入力してください"); return; }
-    if (timeToMinutes(start) >= timeToMinutes(end)) { alert("終了時間は開始時間より後に設定してください"); return; }
+    
+    // ■修正: 「終了時間は開始時間より後」のチェックを削除し、日またぎOKにする
 
-    const hasOverlap = tasks.some(task => {
-        const tStart = timeToMinutes(task.start);
-        const tEnd = timeToMinutes(task.end);
-        return timeToMinutes(start) < tEnd && timeToMinutes(end) > tStart;
-    });
-
-    if (hasOverlap) { alert("時間が他のスケジュールと重なっています！"); return; }
+    if (hasOverlap(start, end)) { 
+        alert("時間が他のスケジュールと重なっています！"); 
+        return; 
+    }
 
     if (editingIndex !== -1) cancelInlineEdit();
 
@@ -379,6 +406,7 @@ function addTask() {
     tasks.sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
     updateUI(true);
 }
+
 // ==========================================
 // タスク削除・空き時間入力支援
 // ==========================================
@@ -396,7 +424,7 @@ function fillFormForNewTask(startStr, endStr) {
 
     document.getElementById('startTime').value = startStr;
     
-    // ■修正: 24:00 (00:00) のエラー対策
+    // 24:00 (00:00) のエラー対策
     if (endStr === "24:00") {
         document.getElementById('endTime').value = "23:59";
     } else {
@@ -443,55 +471,80 @@ function renderCharts() {
     drawPieChart('pmChart', 720, 1440, pmChart, (newChart) => pmChart = newChart);
 }
 
+// ■修正: グラフ描画ロジックを日またぎに対応
 function drawPieChart(canvasId, rangeStart, rangeEnd, currentChartInstance, setChartInstance) {
     const ctx = document.getElementById(canvasId).getContext('2d');
     if (currentChartInstance) currentChartInstance.destroy();
+
+    // 1. 今回のグラフ範囲(例:AM 0-720)に描画すべきタスクの断片（セグメント）を抽出してリスト化する
+    let segments = [];
+    tasks.forEach((task, index) => {
+        const s = timeToMinutes(task.start);
+        const e = timeToMinutes(task.end);
+        
+        // 通常タスク
+        if (s < e) {
+            segments.push({ s: s, e: e, name: task.name, index: index });
+        } 
+        // 日またぎタスク (例: 22:00-07:00) -> 22:00-24:00 と 00:00-07:00 に分割
+        else {
+            segments.push({ s: s, e: 1440, name: task.name, index: index }); // 前日深夜分
+            segments.push({ s: 0, e: e, name: task.name, index: index });    // 当日早朝分
+        }
+    });
+
+    // 2. このグラフの範囲に含まれる部分だけ残して、時間順にソート
+    segments = segments.filter(seg => seg.e > rangeStart && seg.s < rangeEnd);
+    segments.sort((a, b) => a.s - b.s);
 
     let chartData = [];
     let chartLabels = []; 
     let chartColors = [];
     const palette = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
-    let colorIndex = 0;
     
     let currentPos = rangeStart; 
 
-    tasks.forEach((task, index) => {
-        const tStart = timeToMinutes(task.start);
-        const tEnd = timeToMinutes(task.end);
+    // 3. グラフデータの作成（空き時間計算含む）
+    segments.forEach((seg) => {
+        // グラフ範囲内に収まるようにクリップ
+        const drawStart = Math.max(seg.s, rangeStart);
+        const drawEnd = Math.min(seg.e, rangeEnd);
 
-        if (tEnd > rangeStart && tStart < rangeEnd) {
-            
-            const drawStart = Math.max(tStart, rangeStart);
-            const drawEnd = Math.min(tEnd, rangeEnd);
-
-            if (drawStart > currentPos) {
-                const gap = drawStart - currentPos;
-                chartData.push(gap);
-                chartLabels.push({ 
-                    name: "空き時間", 
-                    timeStr: minutesToTime(currentPos) + ' - ' + minutesToTime(drawStart),
-                    isTask: false,
-                    start: minutesToTime(currentPos),
-                    end: minutesToTime(drawStart)
-                });
-                chartColors.push("#e0e0e0");
-            }
-
-            const duration = drawEnd - drawStart;
-            chartData.push(duration);
+        // 空き時間がある場合
+        if (drawStart > currentPos) {
+            const gap = drawStart - currentPos;
+            chartData.push(gap);
             chartLabels.push({ 
-                name: task.name, 
-                timeStr: task.start + ' - ' + task.end, 
-                isTask: true,
-                originalIndex: index 
+                name: "空き時間", 
+                timeStr: minutesToTime(currentPos) + ' - ' + minutesToTime(drawStart),
+                isTask: false,
+                start: minutesToTime(currentPos),
+                end: minutesToTime(drawStart)
             });
-            chartColors.push(palette[colorIndex % palette.length]);
-            
-            currentPos = drawEnd;
+            chartColors.push("#e0e0e0");
         }
-        colorIndex++;
+
+        // タスク部分
+        const duration = drawEnd - drawStart;
+        if (duration > 0) {
+            chartData.push(duration);
+            
+            // 表示用の時間文字列（元のタスクの時間を使うか、断片の時間を使うか）
+            // ここでは元のタスクの時間を参照したいが、簡易的に断片の時間を表示
+            chartLabels.push({ 
+                name: seg.name, 
+                timeStr: minutesToTime(drawStart) + ' - ' + minutesToTime(drawEnd), 
+                isTask: true,
+                originalIndex: seg.index 
+            });
+            // 色はindexに基づいて固定（バラバラにならないように）
+            chartColors.push(palette[seg.index % palette.length]);
+        }
+        
+        currentPos = Math.max(currentPos, drawEnd);
     });
 
+    // 最後の余白
     if (currentPos < rangeEnd) {
         chartData.push(rangeEnd - currentPos);
         chartLabels.push({ 
@@ -788,7 +841,7 @@ function importData(inputElement) {
 }
 
 // ==========================================
-// ■追加：簡易パスワード機能
+// 簡易パスワード機能
 // ==========================================
 function checkPassword() {
     const input = document.getElementById('appPassword').value;
